@@ -1,3 +1,15 @@
+# IDE
+.vscode/
+.idea/
+.flake8
+
+data/
+result/
+figure/
+**/*.npy
+**/*.npz
+**/*.wav
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
