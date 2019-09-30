@@ -251,7 +251,7 @@ class ComplexSpecDataset(Dataset):
                     else:
                         # F, T, C
                         if data.dtype == np.complex64:
-                            data = np.ascontiguousarray(data)
+                            assert data.flags['C_CONTIGUOUS']
                             data = data.view(dtype=np.float32).reshape((*data.shape, 2))
                         sample[k] = torch.from_numpy(data)
 
@@ -292,9 +292,9 @@ class ComplexSpecDataset(Dataset):
                     data = [batch[idx][key].permute(1, 0, 2) for idx in idxs_sorted]
                     data = pad_sequence(data, batch_first=True)
                     # B, C, F, T
-                    data = data.permute(0, 3, 2, 1).contiguous()
+                    data = data.permute(0, 3, 2, 1)
                 else:  # B, C, F, T
-                    data = batch[0][key].unsqueeze(0).permute(0, 3, 1, 2).contiguous()
+                    data = batch[0][key].unsqueeze(0).permute(0, 3, 1, 2)
 
                 # if key == 'x' or key == 'y':
                 #     if hp.feature == 'mulspec' and key == 'x':
@@ -309,7 +309,7 @@ class ComplexSpecDataset(Dataset):
                 #     normalized = normalized.permute(0, -1, -3, -2).contiguous()
                 #     result[f'normalized_{key}'] = normalized
 
-                result[key] = data
+                result[key] = data.contiguous()
 
         return result
 
@@ -334,9 +334,10 @@ class ComplexSpecDataset(Dataset):
                 T_xy = 'T_xs' if 'x' in key else 'T_ys'
                 value = value[idx, :, :, :batch[T_xy][idx]]  # C, F, T
                 value = value.permute(1, 2, 0).contiguous()  # F, T, C
-                result[key] = value.numpy()
-                if result[key].shape[-1] == 2:
-                    result[key] = result[key].view(dtype=np.complex64)  # F, T, 1
+                value = value.numpy()
+                if value.shape[-1] == 2:
+                    value = value.view(dtype=np.complex64)  # F, T, 1
+                result[key] = value
         # if 'x_mag' in result:
         #     result['x'] = result['x_mag']
         #     del result['x_mag']

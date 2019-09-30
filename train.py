@@ -55,12 +55,12 @@ class Trainer:
 
         path_summary = hp.logdir / 'summary.txt'
         if not path_summary.exists():
-            print_to_file(
-                path_summary,
-                summary,
-                (self.model, hp.dummy_input_size),
-                dict(device=self.str_device[:4])
-            )
+            # print_to_file(
+            #     path_summary,
+            #     summary,
+            #     (self.model, hp.dummy_input_size),
+            #     dict(device=self.str_device[:4])
+            # )
             # dd.io.save((hp.logdir / hp.hparams_fname).with_suffix('.h5'), asdict(hp))
             with (hp.logdir / 'hparams.txt').open('w') as f:
                 f.write(repr(hp))

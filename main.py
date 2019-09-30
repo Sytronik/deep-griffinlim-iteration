@@ -60,8 +60,11 @@ if (args.train and args.epoch == -1 and
     ans = input(form_overwrite_msg.format(logdir_train))
     if ans.lower() == 'y':
         shutil.rmtree(logdir_train)
-        # os.remove(hp.logdir / 'summary.txt')
-        # os.remove(hp.logdir / 'hparams.txt')
+        try:
+            os.remove(hp.logdir / 'summary.txt')
+            os.remove(hp.logdir / 'hparams.txt')
+        except FileNotFoundError:
+            pass
     else:
         exit()
 os.makedirs(logdir_train, exist_ok=True)
