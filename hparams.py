@@ -34,12 +34,13 @@ class _HyperParameters:
 
     # model_name: str = 'UNet'
 
-    # dirspec parameters
+    # feature parameters
     fs: int = 16000
     n_fft: int = 512
     l_frame: int = 512
     n_freq: int = 257
     l_hop: int = 256
+    num_snr: int = 3
 
     # training
     n_data: int = 0  # <=0 to use all data
