@@ -45,16 +45,18 @@ class _HyperParameters:
     # training
     n_data: int = 0  # <=0 to use all data
     train_ratio: float = 0.70
-    n_epochs: int = 50
+    n_epochs: int = 200
     batch_size: int = 16
+    learning_rate: float = 5e-4
     thr_clip_grad: float = 4.
+    weight_decay: float = 1e-3  # Adam weight_decay
 
     # summary
-    period_save_state: int = 1
+    period_save_state: int = 5
     draw_test_fig: bool = False
     n_save_block_outs: int = 0
     n_glim_iter: int = 100
-    depth_test: int = 10
+    depth_test: int = 4
 
     # paths
     # logdir will be converted to type Path in the init_dependent_vars function
@@ -95,13 +97,13 @@ class _HyperParameters:
                           out_all_block=True,
                           )
         self.scheduler = dict(mode='min',
-                              factor=10**(-0.5),
-                              patience=2,
+                              factor=0.6,
+                              patience=5,
                               verbose=False,
-                              threshold=0,
+                              threshold=0.01,
                               threshold_mode='rel',
                               cooldown=0,
-                              min_lr=0,
+                              min_lr=1e-5,
                               eps=1e-08
                               )
 
