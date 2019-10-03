@@ -47,8 +47,7 @@ class _HyperParameters:
     train_ratio: float = 0.70
     n_epochs: int = 50
     batch_size: int = 16
-    learning_rate: float = 1e-3
-    weight_decay: float = 0  # Adam weight_decay
+    thr_clip_grad: float = 4.
 
     # summary
     period_save_state: int = 1

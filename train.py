@@ -169,6 +169,7 @@ class Trainer:
             pbar = tqdm(loader_train,
                         desc=f'epoch {epoch:3d}', postfix='[]', dynamic_ncols=True)
             avg_loss = AverageMeter(float)
+            avg_grad_norm = AverageMeter(float)
 
             for i_iter, data in enumerate(pbar):
                 # get data
@@ -183,14 +184,18 @@ class Trainer:
                 # backward
                 self.optimizer.zero_grad()
                 loss.backward()
+                grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(),
+                                                           hp.thr_clip_grad)
 
                 self.optimizer.step()
 
                 # print
                 avg_loss.update(loss.item(), len(T_ys))
                 pbar.set_postfix_str(f'{avg_loss.get_average():.1e}')
+                avg_grad_norm.update(grad_norm)
 
             self.writer.add_scalar('loss/train', avg_loss.get_average(), epoch)
+            self.writer.add_scalar('loss/grad', avg_grad_norm.get_average(), epoch)
 
             # Validation
             loss_valid = self.validate(loader_valid, logdir, epoch)
