@@ -1,12 +1,9 @@
 import contextlib
-import gc
 import os
 from pathlib import Path
-from typing import Callable, List, Union, Any
+from typing import Any, Callable, Union
 
 import numpy as np
-import torch
-import torch.optim
 
 
 # noinspection PyAttributeOutsideInit
@@ -40,20 +37,6 @@ class AverageMeter:
         return self.sum / self.count
 
 
-def static_vars(**kwargs):
-    """ decorator to make static variables in function
-
-    :param kwargs:
-    :return:
-    """
-    def decorate(func: Callable):
-        for k, a in kwargs.items():
-            setattr(func, k, a)
-        return func
-
-    return decorate
-
-
 def arr2str(a: np.ndarray, format_='e', ndigits=2) -> str:
     """convert ndarray of floats to a string expression.
 
@@ -68,33 +51,6 @@ def arr2str(a: np.ndarray, format_='e', ndigits=2) -> str:
             float_kind=(lambda x: f'{x:.{ndigits}{format_}}' if x != 0 else '0')
         )
     )
-
-
-# deprecated. Use tqdm
-def print_progress(iteration: int, total: int, prefix='', suffix='',
-                   decimals=1, len_bar=0):
-    percent = f'{100 * iteration / total:>{decimals + 4}.{decimals}f}'
-    if len_bar == 0:
-        len_bar = (min(os.get_terminal_size().columns, 80)
-                   - len(prefix) - len(percent) - len(suffix) - 11)
-
-    len_filled = len_bar * iteration // total
-    bar = '#' * len_filled + '-' * (len_bar - len_filled)
-
-    print(f'{prefix} |{bar}| {percent}% {suffix}', end='\r')
-    if iteration == total:
-        print('')
-
-
-def print_cuda_tensors():
-    """ Print all cuda Tensors """
-    for obj in gc.get_objects():
-        try:
-            if (torch.is_tensor(obj)
-                    or (hasattr(obj, 'data') and torch.is_tensor(obj.data))):
-                print(type(obj), obj.size(), obj.device)
-        finally:
-            pass
 
 
 def print_to_file(fname: Union[str, Path], fn: Callable, args=None, kwargs=None):

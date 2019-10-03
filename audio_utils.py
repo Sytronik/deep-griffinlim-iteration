@@ -11,44 +11,6 @@ from matlab_lib import Evaluation as EvalModule
 EVAL_METRICS = EvalModule.metrics
 
 
-def calc_snrseg(y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,)) \
-        -> float:
-    """ calculate snrseg. y can be a batch.
-
-    :param y_clean:
-    :param y_est:
-    :param T_ys:
-    :return:
-    """
-
-    _LIM_UPPER = 35. / 10.  # clip at 35 dB
-    _LIM_LOWER = -10. / 10.  # clip at -10 dB
-    if len(T_ys) == 1 and y_clean.shape[0] != 1:
-        if T_ys == (0,):
-            T_ys = (y_clean.shape[0],)
-        y_clean = y_clean[np.newaxis, ...]
-        y_est = y_est[np.newaxis, ...]
-
-    sum_result = np.float32(0.)
-    for T, item_clean, item_est in zip(T_ys, y_clean, y_est):
-        # T
-        norm_clean = np.einsum(
-            'ftc,ftc->t', item_clean[:, :T, :], item_clean[:, :T, :]
-        )
-        err = item_est[:, :T, :] - item_clean[:, :T, :]
-        norm_err = np.einsum(
-            'ftc,ftc->t', err, err
-        ) + np.finfo(np.float32).eps
-
-        snrseg = np.log10(norm_clean / norm_err + np.finfo(np.float32).eps)
-        np.minimum(snrseg, _LIM_UPPER, out=snrseg)
-        np.maximum(snrseg, _LIM_LOWER, out=snrseg)
-        sum_result += snrseg.mean()
-    sum_result *= 10
-
-    return sum_result
-
-
 def calc_using_eval_module(y_clean: ndarray, y_est: ndarray,
                            T_ys: Sequence[int] = (0,)) -> Dict[str, float]:
     """ calculate metric using EvalModule. y can be a batch.
