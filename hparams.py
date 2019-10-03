@@ -1,12 +1,11 @@
 import os
 from argparse import ArgumentParser, Namespace
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Sequence, Tuple, Union
 
 import numpy as np
-# noinspection PyCompatibility
-from dataclasses import asdict, dataclass, field
 from numpy import ndarray
 
 
