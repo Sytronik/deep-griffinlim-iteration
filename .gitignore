@@ -3,12 +3,14 @@
 .idea/
 .flake8
 
+# data
 data/
-result/
+result*/
 figure/
 **/*.npy
 **/*.npz
 **/*.wav
+**/*.pt
 
 pesq_results.txt
 
