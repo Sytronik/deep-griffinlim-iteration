@@ -22,7 +22,7 @@ class _HyperParameters:
     # devices
     device: Union[int, str, Sequence[str], Sequence[int]] = (0, 1, 2, 3)
     out_device: Union[int, str] = 2
-    num_disk_workers: int = 4
+    num_workers: int = 4
 
     # select dataset
     # feature: str = 'IV'

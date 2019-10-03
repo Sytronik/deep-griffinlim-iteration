@@ -104,14 +104,14 @@ trainer = Trainer(path_state_dict)
 if args.train:
     loader_train = DataLoader(dataset_train,
                               batch_size=hp.batch_size,
-                              num_workers=hp.num_disk_workers,
+                              num_workers=hp.num_workers,
                               collate_fn=dataset_train.pad_collate,
                               pin_memory=(hp.device != 'cpu'),
                               shuffle=True,
                               )
     loader_valid = DataLoader(dataset_valid,
                               batch_size=hp.batch_size * 2,
-                              num_workers=hp.num_disk_workers,
+                              num_workers=hp.num_workers,
                               collate_fn=dataset_valid.pad_collate,
                               pin_memory=(hp.device != 'cpu'),
                               shuffle=False,
@@ -125,7 +125,7 @@ else:  # args.test
                                       **hp.channels)
     loader = DataLoader(dataset_test,
                         batch_size=1,
-                        num_workers=hp.num_disk_workers,
+                        num_workers=hp.num_workers,
                         collate_fn=dataset_test.pad_collate,
                         pin_memory=(hp.device != 'cpu'),
                         shuffle=False,
