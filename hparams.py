@@ -90,7 +90,9 @@ class _HyperParameters:
 
         self.model = dict(n_fft=self.n_fft,
                           hop_length=self.l_hop,
-                          depth=10,
+                          depth=4,
+                          separate_dnns=True,
+                          out_all_block=True,
                           )
         self.scheduler = dict(mode='min',
                               factor=10**(-0.5),

@@ -49,6 +49,7 @@ class CustomWriter(SummaryWriter):
     def write_one(self, step: int,
                   out: ndarray = None,
                   res: ndarray = None,
+                  suffix: str = None,
                   **kwargs: ndarray) -> ndarray:
         """ write summary about one sample of output(and x and y optionally).
 
@@ -81,7 +82,7 @@ class CustomWriter(SummaryWriter):
 
         if hp.draw_test_fig or self.group == 'train':
             fig_out = draw_spectrogram(np.abs(res), **self.kwargs_fig)
-            self.add_figure(f'{self.group}/4_DNN_Output_Spectrum', fig_out, step)
+            self.add_figure(f'{self.group}/4_DNN_Output_Spectrum_{suffix}', fig_out, step)
 
         self.add_audio(f'{self.group}/3_DeGLI_output',
                        torch.from_numpy(out_wav / self.y_scale),
@@ -94,7 +95,7 @@ class CustomWriter(SummaryWriter):
         for i, m in enumerate(dict_eval.keys()):
             j = i + 1
             self.add_scalar(f'{self.group}/{j}_{m}/GLim', self.dict_eval_glim[m], step)
-            self.add_scalar(f'{self.group}/{j}_{m}/DeGLI', dict_eval[m], step)
+            self.add_scalar(f'{self.group}/{j}_{m}/DeGLI_{suffix}', dict_eval[m], step)
 
         return np.array([list(dict_eval.values()),
                          list(self.dict_eval_glim.values())], dtype=np.float32)

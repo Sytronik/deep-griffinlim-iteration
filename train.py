@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Sequence, Tuple, Optional, Any, Callable
+from typing import Dict, Sequence, Tuple, Optional, Any
 from collections import defaultdict
 
 import torch
@@ -8,7 +8,7 @@ from numpy import ndarray
 import scipy.io as scio
 from torch import nn, Tensor
 from torch.optim import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torchsummary import summary
 from tqdm import tqdm
@@ -33,7 +33,7 @@ class Trainer:
 
         self.__init_device(hp.device, hp.out_device)
 
-        self.scheduler = ReduceLROnPlateau(self.optimizer, **hp.scheduler)
+        self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, **hp.scheduler)
         self.max_epochs = hp.n_epochs
 
         self.writer: Optional[CustomWriter] = None
@@ -134,12 +134,15 @@ class Trainer:
 
         return dict_one
 
-    def calc_loss(self, output: Tensor, y: Tensor, T_ys: Sequence[int]) -> Tensor:
-        loss_batch = self.criterion(output, y)
-        loss = torch.zeros(1, device=loss_batch.device)
-        for T, loss_sample in zip(T_ys, loss_batch):
-            loss += torch.sum(loss_sample[:, :, :T]) / T
+    def calc_loss(self, outputs: Sequence[Tensor], y: Tensor, T_ys: Sequence[int]) -> Tensor:
+        loss = torch.zeros(len(outputs), device=y.device)
+        for i, output in enumerate(outputs):
+            loss_batch = self.criterion(output, y)
+            for T, loss_sample in zip(T_ys, loss_batch):
+                loss[i] += torch.mean(loss_sample[:, :, :T])
 
+        weight = torch.tensor([1./i for i in range(len(outputs), 0, -1)], device=y.device)
+        loss = loss @ weight / weight.sum()
         return loss
 
     @torch.no_grad()
@@ -158,13 +161,9 @@ class Trainer:
               logdir: Path, first_epoch=0):
         self.writer = CustomWriter(str(logdir), group='train', purge_step=first_epoch)
 
-        # self.writer.add_graph(self.model.module.cpu(),
-        #                       torch.zeros(1, hp.get_for_UNet()[0], 256, 256),
-        #                       True,
-        #                       )
-
         # Start Training
         for epoch in range(first_epoch, hp.n_epochs):
+            self.writer.add_scalar('loss/lr', self.optimizer.param_groups[0]['lr'], epoch)
             print()
             pbar = tqdm(loader_train,
                         desc=f'epoch {epoch:3d}', postfix='[]', dynamic_ncols=True)
@@ -199,11 +198,13 @@ class Trainer:
 
             # Validation
             loss_valid = self.validate(loader_valid, logdir, epoch)
+            # self.validate(loader_valid, logdir, epoch, depth=hp.depth_test)
 
             # save loss & model
             if epoch % hp.period_save_state == hp.period_save_state - 1:
+                module = self.model.module if hasattr(self.model, 'module') else self.model
                 torch.save(
-                    (self.model.module.state_dict() if hasattr(self.model, 'module') else self.model.state_dict(),
+                    (module.state_dict(),
                      self.optimizer.state_dict(),
                      self.scheduler.state_dict(),
                      ),
@@ -217,7 +218,7 @@ class Trainer:
         self.writer.close()
 
     @torch.no_grad()
-    def validate(self, loader: DataLoader, logdir: Path, epoch: int):
+    def validate(self, loader: DataLoader, logdir: Path, epoch: int, depth=0):
         """ Evaluate the performance of the model.
 
         :param loader: DataLoader to use.
@@ -226,7 +227,6 @@ class Trainer:
         """
 
         self.model.eval()
-        self.model.depth = hp.depth_test
 
         avg_loss = AverageMeter(float)
 
@@ -237,7 +237,7 @@ class Trainer:
             T_ys = data['T_ys']
 
             # forward
-            output_loss, output, residual = self.model(x, mag, max_length)
+            output_loss, output, residual = self.model(x, mag, max_length, depth=depth)
 
             # loss
             loss = self.calc_loss(output_loss, y, T_ys)
@@ -264,12 +264,13 @@ class Trainer:
                 else:
                     one_sample = dict()
 
-                self.writer.write_one(epoch, **one_sample, **out_one)
+                self.writer.write_one(epoch, **one_sample, **out_one,
+                                      suffix=str(depth) if depth > 0 else '')
 
-        self.writer.add_scalar('loss/valid', avg_loss.get_average(), epoch)
+        self.writer.add_scalar('loss/valid' + (f'_{depth}' if depth > 0 else ''),
+                               avg_loss.get_average(), epoch)
 
         self.model.train()
-        self.model.depth = hp.model['depth']
 
         return avg_loss.get_average()
 
@@ -300,7 +301,6 @@ class Trainer:
 
         avg_measure = None
         self.model.eval()
-        self.model.depth = hp.depth_test
 
         module_counts = None
         if hp.n_save_block_outs:
@@ -332,7 +332,7 @@ class Trainer:
 
             if i_iter == hp.n_save_block_outs:
                 break
-            _, output, residual = self.model(x, mag, max_length)  # [..., :y.shape[-1]]
+            _, output, residual = self.model(x, mag, max_length, depth=hp.depth_test)
 
             # write summary
             one_sample = ComplexSpecDataset.decollate_padded(data, 0)  # F, T, C
@@ -344,7 +344,8 @@ class Trainer:
                 **one_sample, **out_one
             )
 
-            measure = self.writer.write_one(i_iter, **out_one, **one_sample)
+            measure = self.writer.write_one(i_iter, **out_one, **one_sample,
+                                            suffix=str(hp.depth_test))
             if avg_measure is None:
                 avg_measure = AverageMeter(init_value=measure, init_count=len(T_ys))
             else:
@@ -354,7 +355,6 @@ class Trainer:
             # pbar.write(str_measure)
 
         self.model.train()
-        self.model.depth = hp.model['depth']
 
         avg_measure = avg_measure.get_average()
 
