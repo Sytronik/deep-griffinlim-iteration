@@ -1,3 +1,5 @@
+from itertools import zip_longest
+
 import torch
 import torch.nn as nn
 
@@ -52,15 +54,19 @@ def replace_magnitude(x, mag):
 
 
 class DeGLI(nn.Module):
-    def __init__(self, n_fft: int, hop_length: int, depth=1, separate_dnns=True, out_all_block=False):
+    def __init__(self, n_fft: int, hop_length: int,
+                 depth=1, separate_dnns=True, out_all_block=False):
         super().__init__()
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.depth = depth
+        self.out_all_block = out_all_block
+
         self.window = nn.Parameter(torch.hann_window(n_fft), requires_grad=False)
         self.istft = InverseSTFT(n_fft, hop_length=self.hop_length, window=self.window.data)
-        self.dnns = nn.ModuleList([DeGLI_DNN() for _ in range(depth if separate_dnns else 1)])
-        self.out_all_block = out_all_block
+
+        num_dnns = depth if separate_dnns else 1
+        self.dnns = nn.ModuleList([DeGLI_DNN() for _ in range(num_dnns)])
 
     def stft(self, x):
         return torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window)
@@ -68,20 +74,26 @@ class DeGLI(nn.Module):
     def forward(self, x, mag, max_length=None, depth=0):
         if isinstance(max_length, torch.Tensor):
             max_length = max_length.item()
+        if depth == 0:
+            depth = self.depth
 
-        x_list = [x]
-        for i in range(depth if depth > 0 else self.depth):
+        in_blocks = [x]
+        for i, dnn in zip_longest(range(depth), self.dnns, fillvalue=self.dnns[-1]):
             # B, 2, F, T
-            mag_replaced = replace_magnitude(x, mag)
+            mag_replaced = replace_magnitude(in_blocks[-1], mag)
 
             # B, F, T, 2
-            inv = self.istft(mag_replaced.permute(0, 2, 3, 1), length=max_length)
-            consistent = self.stft(inv)
+            waves = self.istft(mag_replaced.permute(0, 2, 3, 1), length=max_length)
+            consistent = self.stft(waves)
 
             # B, 2, F, T
-            consistent = consistent.permute(0, 3, 1, 2).contiguous()
-            residual = self.dnns[min(i, len(self.dnns)-1)](x, mag_replaced, consistent)
-            x = consistent - residual
-            x_list.append(x)
-        out = replace_magnitude(x, mag)
-        return x_list if self.out_all_block else x_list[-1:], out, residual
+            consistent = consistent.permute(0, 3, 1, 2)
+            residual = dnn(in_blocks[-1], mag_replaced, consistent)
+            in_blocks.append(consistent - residual)
+
+        out_blocks = in_blocks[1:] if self.out_all_block else in_blocks[-1:]
+        out_blocks = torch.stack(out_blocks, dim=1)
+
+        final_out = replace_magnitude(in_blocks[-1], mag)
+
+        return out_blocks, final_out, residual

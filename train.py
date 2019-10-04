@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
@@ -24,6 +25,7 @@ from utils import AverageMeter, arr2str, draw_spectrogram, print_to_file
 class Trainer:
     def __init__(self, path_state_dict=''):
         self.model = DeGLI(**hp.model)
+        self.module = self.model
         self.criterion = nn.L1Loss(reduction='none')
         self.optimizer = Adam(self.model.parameters(),
                               lr=hp.learning_rate,
@@ -39,14 +41,17 @@ class Trainer:
 
         self.valid_eval_sample: Dict[str, Any] = dict()
 
+        self.loss_weight = torch.tensor(
+            [1./i for i in range(self.module.depth, 0, -1)],
+            device=self.out_device,
+        )
+        self.loss_weight /= self.loss_weight.sum()
+
         # Load State Dict
         if path_state_dict:
             st_model, st_optim, st_sched = torch.load(path_state_dict, map_location=self.in_device)
             try:
-                if hasattr(self.model, 'module'):
-                    self.model.module.load_state_dict(st_model)
-                else:
-                    self.model.load_state_dict(st_model)
+                self.module.load_state_dict(st_model)
                 self.optimizer.load_state_dict(st_optim)
                 self.scheduler.load_state_dict(st_sched)
             except:
@@ -60,7 +65,8 @@ class Trainer:
             #     (self.model, hp.dummy_input_size),
             #     dict(device=self.str_device[:4])
             # )
-            # dd.io.save((hp.logdir / hp.hparams_fname).with_suffix('.h5'), asdict(hp))
+            with path_summary.open('w') as f:
+                f.write('\n')
             with (hp.logdir / 'hparams.txt').open('w') as f:
                 f.write(repr(hp))
 
@@ -133,15 +139,20 @@ class Trainer:
 
         return dict_one
 
-    def calc_loss(self, outputs: Sequence[Tensor], y: Tensor, T_ys: Sequence[int]) -> Tensor:
-        loss = torch.zeros(len(outputs), device=y.device)
-        for i, output in enumerate(outputs):
-            loss_batch = self.criterion(output, y)
-            for T, loss_sample in zip(T_ys, loss_batch):
-                loss[i] += torch.mean(loss_sample[:, :, :T])
+    def calc_loss(self, out_blocks: Tensor, y: Tensor, T_ys: Sequence[int]) -> Tensor:
+        """
+        out_blocks: B, depth, C, F, T
+        y: B, C, F, T
+        """
 
-        weight = torch.tensor([1./i for i in range(len(outputs), 0, -1)], device=y.device)
-        loss = loss @ weight / weight.sum()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            loss_no_red = self.criterion(out_blocks, y.unsqueeze(1))
+        loss_blocks = torch.zeros(out_blocks.shape[1], device=y.device)
+        for T, loss_batch in zip(T_ys, loss_no_red):
+            loss_blocks += torch.mean(loss_batch[..., :T], dim=(1, 2, 3))
+
+        loss = loss_blocks @ self.loss_weight
         return loss
 
     @torch.no_grad()
@@ -201,9 +212,8 @@ class Trainer:
 
             # save loss & model
             if epoch % hp.period_save_state == hp.period_save_state - 1:
-                module = self.model.module if hasattr(self.model, 'module') else self.model
                 torch.save(
-                    (module.state_dict(),
+                    (self.module.state_dict(),
                      self.optimizer.state_dict(),
                      self.scheduler.state_dict(),
                      ),
@@ -305,11 +315,7 @@ class Trainer:
         if hp.n_save_block_outs:
             module_counts = defaultdict(int)
             save_forward.writer = self.writer
-            if isinstance(self.model, nn.DataParallel):
-                module = self.model.module
-            else:
-                module = self.model
-            for sub in module.children():
+            for sub in self.module.children():
                 if isinstance(sub, nn.ModuleList):
                     for m in sub:
                         m.register_forward_hook(save_forward)
