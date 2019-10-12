@@ -37,6 +37,7 @@ The file `istft.py` doesn't have any dependency on the other files in this repos
 
 ## Requirements
 
+- python >= 3.7 (because of `dataclass`)
 - MALTAB engine for Python (because of the PESQ, STOI calculation)
 - PyTorch >= 1.2 (because of the tensorboard support)
 - tensorboard
