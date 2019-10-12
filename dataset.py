@@ -64,9 +64,9 @@ class ComplexSpecDataset(Dataset):
             for k, v in self._needs.items():
                 if v.value:
                     data: ndarray = npz_data[hp.spec_data_names[k]]
-                    if type(data) == np.str_:
-                        sample[k] = str(data)
-                    elif data.size <= 1:
+                    if data.dtype.type == np.str_:
+                        sample[k] = str(data.item())
+                    elif data.dtype == np.int:
                         sample[k] = int(data.item())
                     else:
                         # F, T, C
