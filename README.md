@@ -21,8 +21,6 @@ If the `repeat` argument of the forward method is greater than 1, the model repe
 
 (To use the same single DNN for all iterations, set `depth=1` and `repeat>1`.)
 
-Setting `out_all_block` to `True` makes the forward method returns all outputs of all `depth * repeat` iteraions. If the output of the `i`-th iteration is `o_i`, the loss function is defined as
+Setting `out_all_block` to `True` makes the forward method returns all outputs of all `depth * repeat` iteraions. If the output of the <a href="https://www.codecogs.com/eqnedit.php?latex=\inline&space;i" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\inline&space;i" title="i" /></a>-th iteration is <a href="https://www.codecogs.com/eqnedit.php?latex=\inline&space;o_i" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\inline&space;o_i" title="o_i" /></a>, the loss function is defined as
 
-$$
-    L = \sum_{i=0}^{depth \cdot repeat - 1}\frac{1}{repeat - i} L1Loss(o_i, y) / \sum_{i=0}^{depth \cdot repeat - 1} \frac{1}{repeat - i}.
-$$
+<a href="https://www.codecogs.com/eqnedit.php?latex=L&space;=&space;\frac{\sum_{i=0}^{\mathrm{repeat}&space;-&space;1}\frac{1}{\mathrm{repeat}-&space;i}&space;\mathrm{L1Loss}(o_i,&space;y)}{&space;\sum_{i=0}^{\mathrm{repeat}-&space;1}&space;\frac{1}{\mathrm{repeat}-&space;i}}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?L&space;=&space;\frac{\sum_{i=0}^{\mathrm{repeat}&space;-&space;1}\frac{1}{\mathrm{repeat}-&space;i}&space;\mathrm{L1Loss}(o_i,&space;y)}{&space;\sum_{i=0}^{\mathrm{repeat}-&space;1}&space;\frac{1}{\mathrm{repeat}-&space;i}}" title="L = \frac{\sum_{i=0}^{\mathrm{repeat} - 1}\frac{1}{\mathrm{repeat}- i} \mathrm{L1Loss}(o_i, y)}{ \sum_{i=0}^{\mathrm{repeat}- 1} \frac{1}{\mathrm{repeat}- i}}" /></a>.
