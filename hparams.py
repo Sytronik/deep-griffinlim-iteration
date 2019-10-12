@@ -94,7 +94,6 @@ class _HyperParameters:
                           hop_length=self.l_hop,
                           depth=2,
                           out_all_block=True,
-                          final_avg=False,
                           )
         self.scheduler = dict(mode='min',
                               factor=0.6,

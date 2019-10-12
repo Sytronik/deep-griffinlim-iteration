@@ -1,5 +1,3 @@
-from itertools import zip_longest
-
 import torch
 import torch.nn as nn
 
@@ -55,13 +53,11 @@ def replace_magnitude(x, mag):
 
 
 class DeGLI(nn.Module):
-    def __init__(self, n_fft: int, hop_length: int,
-                 depth=1, out_all_block=False, final_avg=False):
+    def __init__(self, n_fft: int, hop_length: int, depth=1, out_all_block=True):
         super().__init__()
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.out_all_block = out_all_block
-        self.final_avg = final_avg
 
         self.window = nn.Parameter(torch.hann_window(n_fft), requires_grad=False)
         self.istft = InverseSTFT(n_fft, hop_length=self.hop_length, window=self.window.data)
@@ -75,13 +71,11 @@ class DeGLI(nn.Module):
         if isinstance(max_length, torch.Tensor):
             max_length = max_length.item()
 
-        out_blocks = []
-        x_repeat = x
+        out_repeats = []
         for ii in range(repeat):
-            in_blocks = [x_repeat]
             for dnn in self.dnns:
                 # B, 2, F, T
-                mag_replaced = replace_magnitude(in_blocks[-1], mag)
+                mag_replaced = replace_magnitude(x, mag)
 
                 # B, F, T, 2
                 waves = self.istft(mag_replaced.permute(0, 2, 3, 1), length=max_length)
@@ -89,23 +83,16 @@ class DeGLI(nn.Module):
 
                 # B, 2, F, T
                 consistent = consistent.permute(0, 3, 1, 2)
-                residual = dnn(in_blocks[-1], mag_replaced, consistent)
-                in_blocks.append(consistent - residual)
-            if self.final_avg:
-                x_repeat = sum(in_blocks[1:]) / (len(in_blocks) - 1)
-                if self.out_all_block or ii == repeat - 1:
-                    out_blocks.append(x_repeat)
-                continue
-            x_repeat = in_blocks[-1]
+                residual = dnn(x, mag_replaced, consistent)
+                x = consistent - residual
             if self.out_all_block:
-                out_blocks.append(x_repeat)
-            elif ii == repeat - 1:
-                out_blocks = in_blocks[-1:]
+                out_repeats.append(x)
 
-        # out_blocks = in_blocks[1:] if self.out_all_block else in_blocks[-1:]
-        out_blocks = torch.stack(out_blocks, dim=1)
+        if self.out_all_block:
+            out_repeats = torch.stack(out_repeats, dim=1)
+        else:
+            out_repeats = x.unsqueeze(1)
 
-        final_out = replace_magnitude(x_repeat, mag)
-        # final_out = replace_magnitude(out_blocks.mean(dim=1), mag)
+        final_out = replace_magnitude(x, mag)
 
-        return out_blocks, final_out, residual
+        return out_repeats, final_out, residual
