@@ -108,6 +108,7 @@ if args.train:
                               collate_fn=dataset_train.pad_collate,
                               pin_memory=(hp.device != 'cpu'),
                               shuffle=True,
+                              drop_last=True,
                               )
     loader_valid = DataLoader(dataset_valid,
                               batch_size=hp.batch_size * 2,
@@ -115,16 +116,15 @@ if args.train:
                               collate_fn=dataset_valid.pad_collate,
                               pin_memory=(hp.device != 'cpu'),
                               shuffle=False,
+                              drop_last=True,
                               )
 
     trainer.train(loader_train, loader_valid, logdir_train, first_epoch)
 else:  # args.test
     # Test Set
-    dataset_test = ComplexSpecDataset('test',
-                                      dataset_temp.norm_modules,
-                                      **hp.channels)
+    dataset_test = ComplexSpecDataset('test')
     loader = DataLoader(dataset_test,
-                        batch_size=1,
+                        batch_size=hp.batch_size * 2,
                         num_workers=hp.num_workers,
                         collate_fn=dataset_test.pad_collate,
                         pin_memory=(hp.device != 'cpu'),

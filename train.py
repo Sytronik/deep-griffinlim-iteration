@@ -160,7 +160,7 @@ class Trainer:
         if len(loss_blocks) == 1:
             loss = loss_blocks.squeeze()
         else:
-        loss = loss_blocks @ self.loss_weight
+            loss = loss_blocks @ self.loss_weight
         return loss
 
     @torch.no_grad()
@@ -335,6 +335,7 @@ class Trainer:
                     sub.register_forward_hook(save_forward)
 
         pbar = tqdm(loader, desc=group, dynamic_ncols=True)
+        cnt_sample = 0
         for i_iter, data in enumerate(pbar):
             # get data
             x, mag, max_length, y = self.preprocess(data)  # B, C, F, T
@@ -344,30 +345,33 @@ class Trainer:
             if module_counts is not None:
                 module_counts = defaultdict(int)
 
-            if i_iter == hp.n_save_block_outs:
+            if 0 < hp.n_save_block_outs == i_iter:
                 break
             _, output, residual = self.model(x, mag, max_length,
                                              repeat=hp.repeat_test)
 
             # write summary
-            one_sample = ComplexSpecDataset.decollate_padded(data, 0)  # F, T, C
+            for i_b in range(len(T_ys)):
+                i_sample = cnt_sample + i_b
+                one_sample = ComplexSpecDataset.decollate_padded(data, i_b)  # F, T, C
 
-            out_one = self.postprocess(output, residual, T_ys, 0, loader.dataset)
+                out_one = self.postprocess(output, residual, T_ys, i_b, loader.dataset)
 
-            ComplexSpecDataset.save_dirspec(
-                logdir / hp.form_result.format(i_iter),
-                **one_sample, **out_one
-            )
+                ComplexSpecDataset.save_dirspec(
+                    logdir / hp.form_result.format(i_sample),
+                    **one_sample, **out_one
+                )
 
-            measure = self.writer.write_one(i_iter, **out_one, **one_sample,
-                                            suffix=str(hp.depth_test))
-            if avg_measure is None:
-                avg_measure = AverageMeter(init_value=measure, init_count=len(T_ys))
-            else:
-                avg_measure.update(measure)
-            # print
-            # str_measure = arr2str(measure).replace('\n', '; ')
-            # pbar.write(str_measure)
+                measure = self.writer.write_one(i_sample, **out_one, **one_sample,
+                                                suffix=f'_{hp.repeat_test}')
+                if avg_measure is None:
+                    avg_measure = AverageMeter(init_value=measure)
+                else:
+                    avg_measure.update(measure)
+                # print
+                # str_measure = arr2str(measure).replace('\n', '; ')
+                # pbar.write(str_measure)
+            cnt_sample += len(T_ys)
 
         self.model.train()
 
