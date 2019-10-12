@@ -55,7 +55,8 @@ class _HyperParameters:
     draw_test_fig: bool = False
     n_save_block_outs: int = 0
     n_glim_iter: int = 100
-    depth_test: int = 4
+    repeat_train: int = 2
+    repeat_test: int = 32
 
     # paths
     # logdir will be converted to type Path in the init_dependent_vars function
@@ -91,9 +92,9 @@ class _HyperParameters:
 
         self.model = dict(n_fft=self.n_fft,
                           hop_length=self.l_hop,
-                          depth=4,
-                          separate_dnns=True,
+                          depth=2,
                           out_all_block=True,
+                          final_avg=False,
                           )
         self.scheduler = dict(mode='min',
                               factor=0.6,

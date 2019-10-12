@@ -41,8 +41,13 @@ class Trainer:
 
         self.valid_eval_sample: Dict[str, Any] = dict()
 
+        # if hp.model['final_avg']:
+        #     len_weight = hp.repeat_train
+        # else:
+        #     len_weight = hp.model['depth'] * hp.repeat_train
+        len_weight = hp.repeat_train
         self.loss_weight = torch.tensor(
-            [1./i for i in range(self.module.depth, 0, -1)],
+            [1./i for i in range(len_weight, 0, -1)],
             device=self.out_device,
         )
         self.loss_weight /= self.loss_weight.sum()
@@ -152,6 +157,9 @@ class Trainer:
         for T, loss_batch in zip(T_ys, loss_no_red):
             loss_blocks += torch.mean(loss_batch[..., :T], dim=(1, 2, 3))
 
+        if len(loss_blocks) == 1:
+            loss = loss_blocks.squeeze()
+        else:
         loss = loss_blocks @ self.loss_weight
         return loss
 
@@ -186,7 +194,8 @@ class Trainer:
                 T_ys = data['T_ys']
 
                 # forward
-                output_loss, _, _ = self.model(x, mag, max_length)  # B, C, F, T
+                output_loss, _, _ = self.model(x, mag, max_length,
+                                               repeat=hp.repeat_train)  # B, C, F, T
 
                 loss = self.calc_loss(output_loss, y, T_ys)
 
@@ -207,8 +216,8 @@ class Trainer:
             self.writer.add_scalar('loss/grad', avg_grad_norm.get_average(), epoch)
 
             # Validation
-            loss_valid = self.validate(loader_valid, logdir, epoch)
-            # self.validate(loader_valid, logdir, epoch, depth=hp.depth_test)
+            # loss_valid = self.validate(loader_valid, logdir, epoch)
+            loss_valid = self.validate(loader_valid, logdir, epoch, repeat=hp.repeat_train)
 
             # save loss & model
             if epoch % hp.period_save_state == hp.period_save_state - 1:
@@ -227,13 +236,14 @@ class Trainer:
         self.writer.close()
 
     @torch.no_grad()
-    def validate(self, loader: DataLoader, logdir: Path, epoch: int, depth=0):
+    def validate(self, loader: DataLoader, logdir: Path, epoch: int, repeat=1):
         """ Evaluate the performance of the model.
 
         :param loader: DataLoader to use.
         :param logdir: path of the result files.
         :param epoch:
         """
+        suffix = f'_{repeat}' if repeat > 1 else ''
 
         self.model.eval()
 
@@ -246,7 +256,8 @@ class Trainer:
             T_ys = data['T_ys']
 
             # forward
-            output_loss, output, residual = self.model(x, mag, max_length, depth=depth)
+            output_loss, output, residual = self.model(x, mag, max_length,
+                                                       repeat=repeat)
 
             # loss
             loss = self.calc_loss(output_loss, y, T_ys)
@@ -273,11 +284,9 @@ class Trainer:
                 else:
                     one_sample = dict()
 
-                self.writer.write_one(epoch, **one_sample, **out_one,
-                                      suffix=str(depth) if depth > 0 else '')
+                self.writer.write_one(epoch, **one_sample, **out_one, suffix=suffix)
 
-        self.writer.add_scalar('loss/valid' + (f'_{depth}' if depth > 0 else ''),
-                               avg_loss.get_average(), epoch)
+        self.writer.add_scalar(f'loss/valid{suffix}', avg_loss.get_average(), epoch)
 
         self.model.train()
 
@@ -337,7 +346,8 @@ class Trainer:
 
             if i_iter == hp.n_save_block_outs:
                 break
-            _, output, residual = self.model(x, mag, max_length, depth=hp.depth_test)
+            _, output, residual = self.model(x, mag, max_length,
+                                             repeat=hp.repeat_test)
 
             # write summary
             one_sample = ComplexSpecDataset.decollate_padded(data, 0)  # F, T, C
